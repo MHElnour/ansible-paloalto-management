@@ -1,7 +1,3 @@
-# ansible-paloalto-management
-
-
-
 # Firewall Automation with Ansible
 
 ## Overview
