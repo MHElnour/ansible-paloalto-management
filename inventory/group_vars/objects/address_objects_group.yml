@@ -1,0 +1,7 @@
+---
+address_groups:
+  - name: 'Web_Servers'
+    static_value: ['dev-jumphost']
+    description: 'Group of web servers'
+    tag: null
+    state: 'present'

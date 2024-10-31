@@ -1,0 +1,8 @@
+---
+address_objects:
+  - name: "PA_Remote_Access"
+    value: "10.3.10.129/27"
+    address_type: "ip-netmask"
+    description: null
+    tag: null
+    state: present

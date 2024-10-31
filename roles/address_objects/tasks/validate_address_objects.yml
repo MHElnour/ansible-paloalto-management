@@ -1,0 +1,187 @@
+---
+- name: Load desired address objects
+  include_vars:
+    file: "{{ inventory_dir }}/group_vars/objects/address_objects.yml"
+    name: desired_address_objects
+
+# Process desired address objects by appending /32 where necessary
+- name: Process desired address objects
+  set_fact:
+    processed_address_objects: "{{ processed_address_objects | default([]) + [ processed_item ] }}"
+  vars:
+    new_value: "{{ item.value + '/32' if (item.address_type == 'ip-netmask' and '/' not in item.value) else item.value }}"
+    processed_item: "{{ item | combine({'value': new_value}) }}"
+  loop: "{{ desired_address_objects.address_objects }}"
+
+# Group desired address objects by state
+- name: Group desired address objects by state
+  set_fact:
+    address_objects_by_state: "{{ dict(processed_address_objects | groupby('state')) }}"
+
+- name: Set address_objects_present
+  set_fact:
+    address_objects_present: "{{ address_objects_by_state.present | default([]) }}"
+
+- name: Set address_objects_replaced
+  set_fact:
+    address_objects_replaced: "{{ address_objects_by_state.replaced | default([]) }}"
+
+- name: Set address_objects_merged
+  set_fact:
+    address_objects_merged: "{{ address_objects_by_state.merged | default([]) }}"
+
+- name: Set address_objects_absent
+  set_fact:
+    address_objects_absent: "{{ address_objects_by_state.absent | default([]) }}"
+
+# Combine 'present' and 'replaced' objects for duplicate checking
+- name: Combine 'present' and 'replaced' objects for duplicate checking
+  set_fact:
+    address_objects_present_replaced: "{{ address_objects_present + address_objects_replaced }}"
+
+# Prepare data structures for validation (present and replaced objects)
+- name: Prepare data structures for validation (present and replaced objects)
+  set_fact:
+    address_object_names_present_replaced: "{{ address_objects_present_replaced | map(attribute='name') | list }}"
+    address_object_values_present_replaced: "{{ address_objects_present_replaced | map(attribute='value') | list }}"
+    desired_address_objects_dict_present_replaced: "{{ dict(address_objects_present_replaced | map(attribute='name') | zip(address_objects_present_replaced | map(attribute='value'))) }}"
+
+# Initialize duplicate address object names and values lists
+- name: Initialize duplicate address object names list (present and replaced)
+  set_fact:
+    duplicate_address_object_names_present_replaced: []
+
+- name: Initialize duplicate address object values list (present and replaced)
+  set_fact:
+    duplicate_address_object_values_present_replaced: []
+
+# Identify duplicate address object names (present and replaced)
+- name: Identify duplicate address object names (present and replaced)
+  set_fact:
+    duplicate_address_object_names_present_replaced: "{{ duplicate_address_object_names_present_replaced + [ item ] }}"
+  loop: "{{ address_object_names_present_replaced }}"
+  when:
+    - address_object_names_present_replaced.count(item) > 1
+    - item not in duplicate_address_object_names_present_replaced
+
+# Identify duplicate address object values (present and replaced)
+- name: Identify duplicate address object values (present and replaced)
+  set_fact:
+    duplicate_address_object_values_present_replaced: "{{ duplicate_address_object_values_present_replaced + [ item ] }}"
+  loop: "{{ address_object_values_present_replaced }}"
+  when:
+    - address_object_values_present_replaced.count(item) > 1
+    - item not in duplicate_address_object_values_present_replaced
+
+# Assert no duplicate address object names
+- name: No duplicate address object names found
+  assert:
+    that:
+      - duplicate_address_object_names_present_replaced | length == 0
+    fail_msg: "Duplicate address object names found: {{ duplicate_address_object_names_present_replaced }}"
+
+# Assert no duplicate address object values
+- name: No duplicate address object values found
+  assert:
+    that:
+      - duplicate_address_object_values_present_replaced | length == 0
+    fail_msg: "Duplicate address object values found: {{ duplicate_address_object_values_present_replaced }}"
+
+# Validate firewall_address_objects variable
+- name: Validate firewall_address_objects variable
+  assert:
+    that:
+      - firewall_address_objects is defined
+      - firewall_address_objects.gathered is defined
+      - firewall_address_objects.gathered | length > 0
+    fail_msg: "The variable 'firewall_address_objects' is not defined or empty."
+
+# Create dictionaries for comparison
+- name: Create dictionaries for comparison
+  set_fact:
+    firewall_address_objects_dict: "{{ dict(firewall_address_objects.gathered | map(attribute='name') | zip(firewall_address_objects.gathered | map(attribute='value'))) }}"
+
+# Create reverse mapping of firewall address objects (values to names)
+- name: Create reverse mapping of firewall address objects (values to names)
+  set_fact:
+    firewall_values_to_names: "{{ dict(firewall_address_objects.gathered | map(attribute='value') | zip(firewall_address_objects.gathered | map(attribute='name'))) }}"
+
+# Initialize mismatched_address_objects
+- name: Initialize mismatched_address_objects
+  set_fact:
+    mismatched_address_objects: []
+
+# Identify mismatched address objects (present state)
+- name: Identify mismatched address objects (present)
+  set_fact:
+    mismatched_address_objects: "{{ mismatched_address_objects + [ {'name': item.name, 'desired': item.value, 'firewall': firewall_address_objects_dict[item.name]} ] }}"
+  loop: "{{ address_objects_present }}"
+  when:
+    - item.name in firewall_address_objects_dict
+    - item.value != firewall_address_objects_dict[item.name]
+
+# Fail if mismatched address objects are found
+- name: Fail if mismatched address objects are found
+  fail:
+    msg: |
+      Address objects validation failed due to mismatched values.
+
+      **Mismatched address objects**:
+      {% for obj in mismatched_address_objects %}
+      - {{ obj.name }}: desired="{{ obj.desired }}", firewall="{{ obj.firewall }}"
+      {% endfor %}
+
+      Please update the firewall configuration or address_objects.yml to resolve these discrepancies.
+  when:
+    - mismatched_address_objects | length > 0
+
+# Confirm all address objects match between address_objects.yml and firewall
+- name: Confirm all address objects match
+  debug:
+    msg: "All 'present' address objects in address_objects.yml match those on the firewall."
+  when:
+    - mismatched_address_objects | length == 0
+
+# Initialize conflicting_address_objects
+- name: Initialize conflicting address objects list
+  set_fact:
+    conflicting_address_objects: []
+
+# Identify conflicting address objects (same value, different name)
+- name: Identify conflicting address objects (same value, different name)
+  set_fact:
+    conflicting_address_objects: "{{ conflicting_address_objects + [ {'name': item.name, 'value': item.value, 'existing_name': firewall_values_to_names[item.value]} ] }}"
+  loop: "{{ address_objects_present }}"
+  when:
+    - item.name not in firewall_address_objects_dict.keys()
+    - item.value in firewall_values_to_names.keys()
+    - firewall_values_to_names[item.value] != item.name
+
+# Fail if conflicting address objects are found
+- name: Fail if conflicting address objects are found
+  fail:
+    msg: |
+      The following desired 'present' address objects have values that already exist on the firewall under different names:
+
+      {% for obj in conflicting_address_objects %}
+      - Desired Name: {{ obj.name }}, Value: {{ obj.value }}, Existing Firewall Name: {{ obj.existing_name }}
+      {% endfor %}
+
+      Please resolve these conflicts by updating address_objects.yml or the firewall configuration.
+  when:
+    - conflicting_address_objects | length > 0
+
+# Identify missing 'present' address objects with full details
+- name: Identify missing 'present' address objects with full details
+  set_fact:
+    missing_present_address_objects: "{{ address_objects_present | rejectattr('name', 'in', firewall_address_objects_dict.keys() | list) | list }}"
+
+# Prepare list of address objects to add or update (present, replaced, and merged)
+- name: Prepare list of address objects to add or update
+  set_fact:
+    new_or_updated_address_objects: "{{ missing_present_address_objects + address_objects_replaced + address_objects_merged }}"
+
+# Debug new_or_updated_address_objects (Optional)
+- name: Debug address_objects_to_remove 
+  debug:
+    var: address_objects_absent 

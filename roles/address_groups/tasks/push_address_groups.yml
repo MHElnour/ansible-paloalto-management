@@ -1,0 +1,11 @@
+---
+- name: Push address groups to the firewall
+  paloaltonetworks.panos.panos_address_group:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    static_value: "{{ item.static_value }}"
+    description: "{{ item.description }}"
+    tag: "{{ (item.tag | select('string') | reject('equalto', '') | list) | default(omit) }}"
+    state: "{{ item.state }}"
+  loop: "{{ address_groups_to_push }}"
+  

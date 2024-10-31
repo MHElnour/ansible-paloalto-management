@@ -1,0 +1,7 @@
+---
+- name: Remove services from the firewall
+  paloaltonetworks.panos.panos_service_object:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    state: "absent"
+  loop: "{{ services_to_remove }}"

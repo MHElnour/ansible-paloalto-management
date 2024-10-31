@@ -1,0 +1,10 @@
+---
+- name: Push service groups to the firewall
+  paloaltonetworks.panos.panos_service_group:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    description: "{{ item.description | default(omit) }}"
+    tag: "{{ (item.tag | select('string') | reject('equalto', '') | list) | default(omit) }}"
+    state: "{{ item.state }}"
+  loop: "{{ service_groups_to_push }}"

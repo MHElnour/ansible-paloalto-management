@@ -1,0 +1,8 @@
+---
+- name: Remove address groups from the firewall
+  paloaltonetworks.panos.panos_address_group:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    state: "absent"
+  loop: "{{ address_groups_to_remove }}"
+  

@@ -1,0 +1,15 @@
+---
+- name: Load tag definitions
+  include_vars:
+    file: "{{ inventory_dir }}/group_vars/objects/tags.yml"
+    name: tag_vars
+
+- name: Push tag objects to the firewall
+  paloaltonetworks.panos.panos_tag_object:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    color: "{{ item.color }}"
+    comments: "{{ item.comments }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ tag_vars.tags }}"
+  register: tag_push_results

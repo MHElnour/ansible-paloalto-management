@@ -1,0 +1,14 @@
+---
+tags:
+  - name: 'Prod-mer'
+    color: 'red'
+    comments: 'Production Environment'
+    state: 'merged'
+  - name: 'Dev'
+    color: 'blue'
+    comments: 'Development Environment'
+    state: 'present'
+  - name: 'QA'
+    color: 'green'
+    comments: 'Quality Assurance Environment'
+    state: 'absent'

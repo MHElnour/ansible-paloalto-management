@@ -1,0 +1,15 @@
+---
+- name: Validate service objects
+  include_tasks: validate_service_objects.yml
+
+- name: Push new or updated services to the firewall
+  when: new_or_updated_services | length > 0
+  include_tasks: push_services.yml
+  vars:
+    services_to_push: "{{ new_or_updated_services }}"
+
+- name: Remove services from the firewall
+  when: services_absent | length > 0
+  include_tasks: remove_services.yml
+  vars:
+    services_to_remove: "{{ services_absent }}"

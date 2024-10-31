@@ -1,0 +1,18 @@
+---
+- name: Gather existing address objects
+  include_tasks: gather_address_objects.yml
+
+- name: Validate address objects
+  include_tasks: validate_address_objects.yml
+
+- name: Push new or updated address objects to the firewall
+  when: new_or_updated_address_objects | length > 0
+  include_tasks: push_address_objects.yml
+  vars:
+    address_objects_to_push: "{{ new_or_updated_address_objects }}"
+
+- name: Remove address objects from the firewall
+  when: address_objects_absent | length > 0
+  include_tasks: remove_address_objects.yml
+  vars:
+    address_objects_to_remove: "{{ address_objects_absent }}"

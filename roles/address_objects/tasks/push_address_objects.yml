@@ -1,0 +1,11 @@
+---
+- name: Push missing address objects to the firewall
+  paloaltonetworks.panos.panos_address_object:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    address_type: "{{ item.address_type }}"
+    description: "{{ item.description }}"
+    tag: "{{ (item.tag | select('string') | reject('equalto', '') | list) | default(omit) }}"
+    state: "{{ item.state }}"
+  loop: "{{ new_or_updated_address_objects }}"

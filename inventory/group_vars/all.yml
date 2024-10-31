@@ -1,0 +1,7 @@
+---
+applications_rules:
+  - app1
+  - app2
+categories_rules:
+  - generic_allow
+  - internet_allow

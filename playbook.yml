@@ -1,0 +1,12 @@
+---
+- name: Push All Objects to Palo Alto Firewall
+  hosts: prod-firewall01
+  connection: local
+  gather_facts: false
+  become: false
+  roles:
+    - role: tag_objects
+    - role: service_objects
+    - role: service_groups
+    - role: address_objects
+    - role: address_groups

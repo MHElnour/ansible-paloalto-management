@@ -1,0 +1,11 @@
+---
+- name: Push services to the firewall
+  paloaltonetworks.panos.panos_service_object:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    protocol: "{{ item.protocol }}"
+    destination_port: "{{ item.destination_port }}"
+    description: "{{ item.description | default(omit, true) }}"
+    tag: "{{ (item.tag | select('string') | reject('equalto', '') | list) | default(omit) }}"
+    state: "present"
+  loop: "{{ services_to_push }}"

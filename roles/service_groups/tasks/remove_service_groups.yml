@@ -1,0 +1,7 @@
+---
+- name: Remove service groups from the firewall
+  paloaltonetworks.panos.panos_service_group:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    state: "absent"
+  loop: "{{ service_groups_to_remove }}"

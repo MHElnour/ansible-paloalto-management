@@ -1,0 +1,7 @@
+---
+- name: Remove address objects from the firewall
+  paloaltonetworks.panos.panos_address_object:
+    provider: "{{ provider }}"
+    name: "{{ item.name }}"
+    state: "absent"
+  loop: "{{ address_objects_absent }}"

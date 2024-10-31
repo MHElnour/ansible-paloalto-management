@@ -1,0 +1,14 @@
+service_groups:
+  - name: 'Web_Services'
+    value:
+      - 'prox-mgmt'
+      - 'tcp-3000'
+    tag: null
+    state: 'present'
+
+  - name: 'DNS_Services'
+    value:
+      - 'DNS'
+      - 'DNS-5353'
+    tag: null
+    state: 'replaced'

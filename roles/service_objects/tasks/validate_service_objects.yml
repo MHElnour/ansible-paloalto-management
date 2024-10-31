@@ -1,0 +1,129 @@
+---
+- name: Load desired services
+  include_vars:
+    file: "{{ inventory_dir }}/group_vars/objects/service_objects.yml"
+    name: desired_services
+
+# Process desired services
+- name: Process desired services
+  set_fact:
+    processed_services: "{{ desired_services.services }}"
+
+# Group desired services by state
+- name: Group desired services by state
+  set_fact:
+    services_by_state: "{{ dict(processed_services | groupby('state')) }}"
+
+- name: Set services_present
+  set_fact:
+    services_present: "{{ services_by_state.present | default([]) }}"
+
+- name: Set services_replaced
+  set_fact:
+    services_replaced: "{{ services_by_state.replaced | default([]) }}"
+
+- name: Set services_merged
+  set_fact:
+    services_merged: "{{ services_by_state.merged | default([]) }}"
+
+- name: Set services_absent
+  set_fact:
+    services_absent: "{{ services_by_state.absent | default([]) }}"
+
+# Prepare list of service names
+- name: Prepare list of service names
+  set_fact:
+    service_names: "{{ processed_services | map(attribute='name') | list }}"
+
+# Initialize duplicate service names list
+- name: Initialize duplicate service names list
+  set_fact:
+    duplicate_service_names: []
+
+# Identify duplicate service names
+- name: Identify duplicate service names
+  set_fact:
+    duplicate_service_names: "{{ duplicate_service_names + [ item ] }}"
+  loop: "{{ service_names }}"
+  when:
+    - service_names.count(item) > 1
+    - item not in duplicate_service_names
+
+# Fail if duplicate service names are found
+- name: Fail if duplicate service names are found
+  fail:
+    msg: "Duplicate service names found: {{ duplicate_service_names }}"
+  when:
+    - duplicate_service_names | length > 0
+
+# Gather existing services from the firewall
+- name: Gather existing services from the firewall
+  paloaltonetworks.panos.panos_service_object:
+    provider: "{{ provider }}"
+    state: gathered
+    gathered_filter: 'name matches-regex .*?'
+  register: firewall_services
+
+# Create dictionaries for comparison
+- name: Create dictionaries for comparison
+  set_fact:
+    firewall_services_dict: "{{ dict(firewall_services.gathered | map(attribute='name') | zip(firewall_services.gathered | list)) }}"
+
+# Create list of existing service names
+- name: Create list of existing service names
+  set_fact:
+    firewall_service_names: "{{ firewall_services.gathered | map(attribute='name') | list }}"
+
+# Initialize mismatched_services
+- name: Initialize mismatched_services
+  set_fact:
+    mismatched_services: []
+
+# Identify mismatched or missing services (present state)
+- name: Identify mismatched or missing services (present)
+  set_fact:
+    mismatched_services: "{{ mismatched_services + [ {'name': item.name, 'desired': item, 'firewall': firewall_services_dict.get(item.name, {})} ] }}"
+  loop: "{{ services_present }}"
+  when: |
+    item.name not in firewall_services_dict or
+    (
+      item.protocol != firewall_services_dict[item.name].protocol or
+      item.destination_port != firewall_services_dict[item.name].destination_port
+    )
+
+# Confirm all 'present' services match
+- name: Confirm all 'present' services match
+  debug:
+    msg: "All 'present' services in service_objects.yml are already configured on the firewall and match the desired configuration."
+  when:
+    - mismatched_services | length == 0
+
+# Initialize replaced_services_to_update and merged_services_to_update
+- name: Initialize replaced_services_to_update
+  set_fact:
+    replaced_services_to_update: []
+
+- name: Initialize merged_services_to_update
+  set_fact:
+    merged_services_to_update: []
+
+# Identify 'replaced' services that need updating
+- name: Identify 'replaced' services that need updating
+  set_fact:
+    replaced_services_to_update: "{{ replaced_services_to_update + [ item ] }}"
+  loop: "{{ services_replaced }}"
+  when:
+    - item.name in firewall_service_names
+
+# Identify 'merged' services that need updating
+- name: Identify 'merged' services that need updating
+  set_fact:
+    merged_services_to_update: "{{ merged_services_to_update + [ item ] }}"
+  loop: "{{ services_merged }}"
+  when:
+    - item.name in firewall_service_names
+
+# Prepare list of services to add or update
+- name: Prepare list of services to add or update
+  set_fact:
+    new_or_updated_services: "{{ mismatched_services | map(attribute='desired') | list + replaced_services_to_update + merged_services_to_update }}"

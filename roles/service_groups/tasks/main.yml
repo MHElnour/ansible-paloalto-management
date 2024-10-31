@@ -1,0 +1,216 @@
+---
+- name: Load desired service groups
+  include_vars:
+    file: "{{ inventory_dir }}/group_vars/objects/service_objects_group.yml"
+    name: desired_service_groups
+
+# Process desired service groups
+- name: Process desired service groups
+  set_fact:
+    processed_service_groups: "{{ desired_service_groups.service_groups }}"
+
+# Group desired service groups by state
+- name: Group desired service groups by state
+  set_fact:
+    service_groups_by_state: "{{ dict(processed_service_groups | groupby('state')) }}"
+
+- name: Set service_groups_present
+  set_fact:
+    service_groups_present: "{{ service_groups_by_state.present | default([]) }}"
+
+- name: Set service_groups_replaced
+  set_fact:
+    service_groups_replaced: "{{ service_groups_by_state.replaced | default([]) }}"
+
+- name: Set service_groups_merged
+  set_fact:
+    service_groups_merged: "{{ service_groups_by_state.merged | default([]) }}"
+
+- name: Set service_groups_absent
+  set_fact:
+    service_groups_absent: "{{ service_groups_by_state.absent | default([]) }}"
+
+# Prepare list of service group names
+- name: Prepare list of service group names
+  set_fact:
+    service_group_names: "{{ processed_service_groups | map(attribute='name') | list }}"
+
+# Initialize duplicate service group names list
+- name: Initialize duplicate service group names list
+  set_fact:
+    duplicate_service_group_names: []
+
+# Identify duplicate service group names
+- name: Identify duplicate service group names
+  set_fact:
+    duplicate_service_group_names: "{{ duplicate_service_group_names + [ item ] }}"
+  loop: "{{ service_group_names }}"
+  when: 
+    - service_group_names.count(item) > 1
+    - item not in duplicate_service_group_names
+
+# Fail if duplicate service group names are found
+- name: Fail if duplicate service group names are found
+  fail:
+    msg: "Duplicate service group names found: {{ duplicate_service_group_names }}"
+  when: duplicate_service_group_names | length > 0
+
+# Initialize duplicate member groups list
+- name: Initialize duplicate member groups list
+  set_fact:
+    duplicate_member_groups: []
+
+# Identify service groups with identical value
+- name: Identify service groups with identical value
+  vars:
+    sorted_value: "{{ item.value | sort }}"
+  set_fact:
+    duplicate_member_groups: "{{ duplicate_member_groups + [ item ] }}"
+  loop: "{{ processed_service_groups }}"
+  when: >
+    (processed_service_groups | selectattr('value', 'equalto', item.value | sort) | list | length) > 1 and
+    (item not in duplicate_member_groups)
+
+# Fail if duplicate service groups with identical value are found
+- name: Fail if duplicate service groups with identical value are found
+  fail:
+    msg: |
+      The following service groups have identical value:
+      {% for group in duplicate_member_groups %}
+      - {{ group.name }} with value {{ group.value }}
+      {% endfor %}
+      Please consolidate these service groups or ensure they have unique value.
+  when: duplicate_member_groups | length > 0
+
+# Gather existing service groups from the firewall
+- name: Gather existing service groups from the firewall
+  paloaltonetworks.panos.panos_service_group:
+    provider: "{{ provider }}"
+    state: gathered
+    gathered_filter: 'name matches-regex .*?'
+  register: firewall_service_groups
+
+# Create dictionaries for comparison
+- name: Create dictionaries for comparison
+  set_fact:
+    firewall_service_groups_dict: "{{ dict(firewall_service_groups.gathered | map(attribute='name') | zip(firewall_service_groups.gathered | list)) }}"
+
+# Create list of existing service group names
+- name: Create list of existing service group names
+  set_fact:
+    firewall_service_group_names: "{{ firewall_service_groups.gathered | map(attribute='name') | list }}"
+
+# Collect required service names from service groups
+- name: Collect required service names from service groups
+  set_fact:
+    required_service_names: "{{ required_service_names | default([]) + (item.value | default([])) }}"
+  loop: "{{ processed_service_groups }}"
+  when: item.value is defined
+
+# Remove duplicates from required_service_names
+- name: Remove duplicates from required_service_names
+  set_fact:
+    required_service_names: "{{ required_service_names | unique }}"
+
+# Gather existing services from the firewall
+- name: Gather existing services from the firewall
+  paloaltonetworks.panos.panos_service_object:
+    provider: "{{ provider }}"
+    state: gathered
+    gathered_filter: 'name matches-regex .*?'
+  register: firewall_services
+
+# Create dictionaries for comparison
+- name: Create dictionaries for comparison
+  set_fact:
+    firewall_services_dict: "{{ dict(firewall_services.gathered | map(attribute='name') | zip(firewall_services.gathered | list)) }}"
+
+# Create list of existing service names
+- name: Create list of existing service names
+  set_fact:
+    firewall_service_names: "{{ firewall_services.gathered | map(attribute='name') | list }}"
+
+# Debug to verify 'firewall_service_names' is defined
+- name: Debug firewall_service_names
+  debug:
+    var: firewall_service_names
+
+# Identify missing required services
+- name: Identify missing required services
+  set_fact:
+    missing_required_services: "{{ required_service_names | difference(firewall_service_names) }}"
+  when: required_service_names | length > 0
+
+# Fail if there are missing required services
+- name: Fail if there are missing required services
+  fail:
+    msg: |
+      The following services are required by service groups but are missing on the firewall:
+      {{ missing_required_services }}
+      Please create them on the firewall or include them in the services role before proceeding.
+  when: missing_required_services | length > 0
+
+# Initialize mismatched_service_groups
+- name: Initialize mismatched_service_groups
+  set_fact:
+    mismatched_service_groups: []
+
+# Identify mismatched or missing service groups (present state)
+- name: Identify mismatched or missing service groups (present)
+  set_fact:
+    mismatched_service_groups: "{{ mismatched_service_groups + [ {'name': item.name, 'desired': item, 'firewall': firewall_service_groups_dict.get(item.name, {})} ] }}"
+  loop: "{{ service_groups_present }}"
+  when: >
+    item.name not in firewall_service_groups_dict or
+    (
+      (item.value | sort) | difference(firewall_service_groups_dict[item.name].value | sort) | length > 0 or
+      (firewall_service_groups_dict[item.name].value | sort) | difference(item.value | sort) | length > 0
+    )
+
+# Confirm all 'present' service groups match
+- name: Confirm all 'present' service groups match
+  debug:
+    msg: "All 'present' service groups in service_groups.yml are already configured on the firewall and match the desired configuration."
+  when: mismatched_service_groups | length == 0
+
+# Initialize replaced_service_groups_to_update and merged_service_groups_to_update
+- name: Initialize replaced_service_groups_to_update
+  set_fact:
+    replaced_service_groups_to_update: []
+
+- name: Initialize merged_service_groups_to_update
+  set_fact:
+    merged_service_groups_to_update: []
+
+# Identify 'replaced' service groups that need updating
+- name: Identify 'replaced' service groups that need updating
+  set_fact:
+    replaced_service_groups_to_update: "{{ replaced_service_groups_to_update + [ item ] }}"
+  loop: "{{ service_groups_replaced }}"
+  when: item.name in firewall_service_group_names
+
+# Identify 'merged' service groups that need updating
+- name: Identify 'merged' service groups that need updating
+  set_fact:
+    merged_service_groups_to_update: "{{ merged_service_groups_to_update + [ item ] }}"
+  loop: "{{ service_groups_merged }}"
+  when: item.name in firewall_service_group_names
+
+# Prepare list of service groups to add or update
+- name: Prepare list of service groups to add or update
+  set_fact:
+    new_or_updated_service_groups: "{{ mismatched_service_groups | map(attribute='desired') | list + replaced_service_groups_to_update + merged_service_groups_to_update }}"
+
+# Push new or updated service groups to the firewall
+- name: Push new or updated service groups to the firewall
+  when: new_or_updated_service_groups | length > 0
+  include_tasks: push_service_groups.yml
+  vars:
+    service_groups_to_push: "{{ new_or_updated_service_groups }}"
+
+# Remove service groups from the firewall (absent state)
+- name: Remove service groups from the firewall
+  when: service_groups_absent | length > 0
+  include_tasks: remove_service_groups.yml
+  vars:
+    service_groups_to_remove: "{{ service_groups_absent }}"

@@ -1,0 +1,7 @@
+---
+- name: Gather Current PaloAlto Address Objects
+  paloaltonetworks.panos.panos_address_object:
+    provider: "{{ provider }}"
+    state: gathered
+    gathered_filter: 'name matches-regex .*?'
+  register: firewall_address_objects

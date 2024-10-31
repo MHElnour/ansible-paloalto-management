@@ -1,0 +1,222 @@
+---
+# Load desired address groups
+- name: Load desired address groups
+  include_vars:
+    file: "{{ inventory_dir }}/group_vars/objects/address_objects_group.yml"
+    name: desired_address_groups
+
+# Process desired address groups
+- name: Process desired address groups
+  set_fact:
+    processed_address_groups: "{{ desired_address_groups.address_groups }}"
+
+# Group desired address groups by state
+- name: Group desired address groups by state
+  set_fact:
+    address_groups_by_state: "{{ dict(processed_address_groups | groupby('state')) }}"
+
+- name: Set address_groups_present
+  set_fact:
+    address_groups_present: "{{ address_groups_by_state.present | default([]) }}"
+
+- name: Set address_groups_replaced
+  set_fact:
+    address_groups_replaced: "{{ address_groups_by_state.replaced | default([]) }}"
+
+- name: Set address_groups_merged
+  set_fact:
+    address_groups_merged: "{{ address_groups_by_state.merged | default([]) }}"
+
+- name: Set address_groups_absent
+  set_fact:
+    address_groups_absent: "{{ address_groups_by_state.absent | default([]) }}"
+
+# Prepare list of address group names
+- name: Prepare list of address group names
+  set_fact:
+    address_group_names: "{{ processed_address_groups | map(attribute='name') | list }}"
+
+# Initialize duplicate address group names list
+- name: Initialize duplicate address group names list
+  set_fact:
+    duplicate_address_group_names: []
+
+# Identify duplicate address group names
+- name: Identify duplicate address group names
+  set_fact:
+    duplicate_address_group_names: "{{ duplicate_address_group_names + [ item ] }}"
+  loop: "{{ address_group_names }}"
+  when:
+    - address_group_names.count(item) > 1
+    - item not in duplicate_address_group_names
+
+# Fail if duplicate address group names are found
+- name: Fail if duplicate address group names are found
+  fail:
+    msg: "Duplicate address group names found: {{ duplicate_address_group_names }}"
+  when:
+    - duplicate_address_group_names | length > 0
+
+# Initialize duplicate member groups list
+- name: Initialize duplicate member groups list
+  set_fact:
+    duplicate_member_groups: []
+
+# Identify address groups with identical members
+- name: Identify address groups with identical members
+  vars:
+    groups_by_members: "{{ processed_address_groups | groupby('static_value') }}"
+  set_fact:
+    duplicate_member_groups: "{{ duplicate_member_groups + item.1 }}"
+  loop: "{{ groups_by_members }}"
+  when: item.1 | length > 1
+
+# Fail if duplicate address groups with identical members are found
+- name: Fail if duplicate address groups with identical members are found
+  fail:
+    msg: |
+      The following address groups have identical members:
+      {% for group in duplicate_member_groups %}
+      - {{ group.name }} with members {{ group.static_value }}
+      {% endfor %}
+      Please consolidate these address groups or ensure they have unique members.
+  when: duplicate_member_groups | length > 0
+
+# Fetch existing address groups from the firewall
+- name: Gather existing address groups from the firewall
+  paloaltonetworks.panos.panos_address_group:
+    provider: "{{ provider }}"
+    state: gathered
+    gathered_filter: 'name matches-regex .*?'
+  register: firewall_address_groups
+
+# Create dictionaries for comparison
+- name: Create dictionaries for comparison
+  set_fact:
+    firewall_address_groups_dict: "{{ dict(firewall_address_groups.gathered | map(attribute='name') | zip(firewall_address_groups.gathered | list)) }}"
+
+# Create list of existing address group names
+- name: Create list of existing address group names
+  set_fact:
+    firewall_address_group_names: "{{ firewall_address_groups.gathered | map(attribute='name') | list }}"
+
+# Fetch existing address objects from the firewall
+- name: Gather existing address objects from the firewall
+  paloaltonetworks.panos.panos_address_object:
+    provider: "{{ provider }}"
+    state: gathered
+    gathered_filter: 'name matches-regex .*?'
+  register: firewall_address_objects
+
+# Create list of existing address object names
+- name: Create list of existing address object names
+  set_fact:
+    firewall_address_object_names: "{{ firewall_address_objects.gathered | map(attribute='name') | list }}"
+
+# Collect required address object names from address groups
+- name: Collect required address object names from address groups
+  set_fact:
+    required_address_object_names: "{{ required_address_object_names | default([]) + (item.static_value | default([])) }}"
+  loop: "{{ processed_address_groups }}"
+  when: item.static_value is defined
+
+# Remove duplicates from required_address_object_names
+- name: Remove duplicates from required_address_object_names
+  set_fact:
+    required_address_object_names: "{{ required_address_object_names | unique }}"
+
+# Identify missing required address objects
+- name: Identify missing required address objects
+  set_fact:
+    missing_required_address_objects: "{{ required_address_object_names | difference(firewall_address_object_names) }}"
+
+# Fail if there are missing required address objects
+- name: Fail if there are missing required address objects
+  fail:
+    msg: |
+      The following address objects are required by address groups but are missing on the firewall:
+      {{ missing_required_address_objects }}
+      Please create them on the firewall or include them in the address objects role before proceeding.
+  when: missing_required_address_objects | length > 0
+
+# Initialize mismatched_address_groups
+- name: Initialize mismatched_address_groups
+  set_fact:
+    mismatched_address_groups: []
+
+# Identify mismatched or missing address groups (present state)
+- name: Identify mismatched or missing address groups (present)
+  set_fact:
+    mismatched_address_groups: "{{ mismatched_address_groups + [ {'name': item.name, 'desired': item, 'firewall': firewall_address_groups_dict.get(item.name, {})} ] }}"
+  loop: "{{ address_groups_present }}"
+  when: |
+    item.name not in firewall_address_groups_dict or
+    (
+      (item.static_value | default([])) | difference(firewall_address_groups_dict[item.name].static_value | default([])) | length > 0 or
+      (firewall_address_groups_dict[item.name].static_value | default([])) | difference(item.static_value | default([])) | length > 0 or
+      (item.dynamic_filter | default('')) != (firewall_address_groups_dict[item.name].dynamic_value | default(''))
+    )
+
+# Fail if mismatched or missing address groups are found
+- name: Fail if mismatched or missing address groups are found
+  fail:
+    msg: |
+      The following 'present' address groups have mismatched values or are missing on the firewall:
+      {% for obj in mismatched_address_groups %}
+      - {{ obj.name }}
+        Desired: {{ obj.desired }}
+        Firewall: {{ obj.firewall }}
+      {% endfor %}
+      Please update the firewall configuration or address_groups.yml to resolve these discrepancies.
+  when: mismatched_address_groups | length > 0
+
+# Confirm all 'present' address groups match
+- name: Confirm all 'present' address groups match
+  debug:
+    msg: "All 'present' address groups in address_groups.yml are already configured on the firewall and match the desired configuration."
+  when:
+    - mismatched_address_groups | length == 0
+
+# Initialize replaced_groups_to_update and merged_groups_to_update
+- name: Initialize replaced_groups_to_update
+  set_fact:
+    replaced_groups_to_update: []
+
+- name: Initialize merged_groups_to_update
+  set_fact:
+    merged_groups_to_update: []
+
+# Identify 'replaced' address groups that need updating
+- name: Identify 'replaced' address groups that need updating
+  set_fact:
+    replaced_groups_to_update: "{{ replaced_groups_to_update + [ item ] }}"
+  loop: "{{ address_groups_replaced }}"
+  when:
+    - item.name in firewall_address_group_names
+
+# Identify 'merged' address groups that need updating
+- name: Identify 'merged' address groups that need updating
+  set_fact:
+    merged_groups_to_update: "{{ merged_groups_to_update + [ item ] }}"
+  loop: "{{ address_groups_merged }}"
+  when:
+    - item.name in firewall_address_group_names
+
+# Prepare list of address groups to add or update
+- name: Prepare list of address groups to add or update
+  set_fact:
+    new_or_updated_address_groups: "{{ mismatched_address_groups | map(attribute='desired') | list + replaced_groups_to_update + merged_groups_to_update }}"
+
+# Push new or updated address groups to the firewall
+- name: Push new or updated address groups to the firewall
+  when: new_or_updated_address_groups | length > 0
+  include_tasks: push_address_groups.yml
+  vars:
+    address_groups_to_push: "{{ new_or_updated_address_groups }}"
+
+# Remove address groups from the firewall (absent state)
+- name: Remove address groups from the firewall
+  when: address_groups_absent | length > 0
+  include_tasks: remove_address_groups.yml
+  vars:
+    address_groups_to_remove: "{{ address_groups_absent }}"
