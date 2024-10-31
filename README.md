@@ -76,20 +76,35 @@ This project is actively being developed. The following functionalities are curr
 
 - Palo Alto Networks PAN-OS Collection: Install the necessary Ansible collection.
 
+  ```bash
   ansible-galaxy collection install paloaltonetworks.panos
+  # Please make sure to visit https://github.com/PaloAltoNetworks/pan-os-ansible/blob/develop/requirements.txt and make sure you have all the requirements for the Collection to function.
 
 **Clone the Repository:**
-
-   ```bash
+```bash
    git clone https://github.com/MHElnour/ansible-paloalto-management.git
    cd ansible-paloalto-management
-
-### 1. Prepare Your Inventory
-   Prepare Inventory: hosts.ini / host_vars
-### 2. Encrypt Sensitive Variables with Ansible Vault
-   ansible-vault encrypt host_vars/prod-firewall01.yml
-### 3. Run the Playbook
-   ansible-playbook playbook.yml --ask-vault-pass
 ```
+## Usage Guidelines
+
+- Modular Role Structure: Organize your master playbook to invoke only the roles needed for each task. For example, if you’re adding address objects or service groups, include only the corresponding roles.
+- Handling the Absent State: This role also supports resource removal from the firewall using the absent state. To delete a resource, structure your playbook carefully:
+  - Example: Removing a Service Object
+    - If the service object you want to remove is part of a service group, first update the group by setting its state to merged and removing the service from it.
+    - Then, set the service object's state to absent and include the role to ensure the object is removed from the firewall.
+    - Follow the correct order: update the group first, then delete the service object.
+
+    ```bash
+    - name: Removing service object
+      hosts: prod-firewall01
+      connection: local
+      gather_facts: false
+      become: false
+      roles:
+         - role: service_groups
+         - role: service_objects
+
+By following a logical structure, you ensure that all resources are created, updated, or removed in the correct order, preventing issues related to dependencies, such as undefined tags. This flexible setup allows for easy management and customization according to the needs of your Palo Alto environment.
+
 
 
