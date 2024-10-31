@@ -35,6 +35,13 @@ checks to always be clean, and will flag any errors and halt the execution of th
 - MismatchWithoutResolution: The mismatch between the source and the firewall that could not be resolved by pushing missing address objects.
 - PushFailures: Failures in pushing missing address objects to the firewall.
 
+![dup_objects](https://github.com/user-attachments/assets/0e519be5-e83a-4c19-92a7-c6338627c225)
+![dup_values](https://github.com/user-attachments/assets/8c782fde-cebf-48b1-9575-cd0d75924a98)
+![mismatched_values](https://github.com/user-attachments/assets/dffa4b8a-1815-4e04-b632-3c2e3f74f327)
+![all_match](https://github.com/user-attachments/assets/ab54c363-40e7-4bc7-bd06-f74abe1635b1)
+![push_new_only](https://github.com/user-attachments/assets/62e0f024-7bfe-48d6-bbad-2e03da9750b6)
+
+
 ## Features
 
 - **Service Objects Management:** Define and manage individual service objects.
@@ -43,11 +50,6 @@ checks to always be clean, and will flag any errors and halt the execution of th
 - **Address Groups Management:** Group address objects for organized network segmentation.
 - **Tag Objects Management:** Create and manage tags to categorize and describe firewall objects.
 
-![dup_objects](https://github.com/user-attachments/assets/0e519be5-e83a-4c19-92a7-c6338627c225)
-![dup_values](https://github.com/user-attachments/assets/8c782fde-cebf-48b1-9575-cd0d75924a98)
-![mismatched_values](https://github.com/user-attachments/assets/dffa4b8a-1815-4e04-b632-3c2e3f74f327)
-![all_match](https://github.com/user-attachments/assets/ab54c363-40e7-4bc7-bd06-f74abe1635b1)
-![push_new_only](https://github.com/user-attachments/assets/62e0f024-7bfe-48d6-bbad-2e03da9750b6)
 
 ## Current Status
 
