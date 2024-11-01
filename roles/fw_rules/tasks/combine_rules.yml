@@ -1,0 +1,26 @@
+---
+- name: Initialize an empty list for combined rules
+  set_fact:
+    combined_rules: []
+
+- name: Read and combine all application rules
+  set_fact:
+    combined_rules: "{{ combined_rules + (lookup('file', inventory_dir + '/group_vars/applications_rules/' + item + '.yml') | from_yaml | default({}) ).rules | default([]) }}"
+  loop: "{{ applications_rules | default([]) }}"
+  when: item is defined
+
+- name: Read and combine all category rules
+  set_fact:
+    combined_rules: "{{ combined_rules + (lookup('file', inventory_dir + '/group_vars/categories_rules/' + item + '.yml') | from_yaml | default({}) ).rules | default([]) }}"
+  loop: "{{ categories_rules | default([]) }}"
+  when: item is defined
+
+- name: Write the combined firewall rules to a single file using template
+  template:
+    src: combined_rules.yml.j2
+    dest: "{{ inventory_dir }}/group_vars/rules/combined_firewall_rules.yml"
+    mode: '0644'
+
+- name: Notify completion
+  debug:
+    msg: "All firewall rules have been successfully combined into {{ inventory_dir }}/group_vars/rules/combined_firewall_rules.yml"

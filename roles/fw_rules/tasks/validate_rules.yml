@@ -1,0 +1,42 @@
+---
+- name: Load desired rules 
+  include_vars:
+    file: "{{ inventory_dir }}/group_vars/rules/combined_firewall_rules.yml"
+    name: combined_firewall_rules
+
+- name: Extract rule names from combined_firewall_rules
+  set_fact:
+    combined_rule_names: "{{ combined_firewall_rules.rules | map(attribute='rule_name') | list }}"
+
+- name: Escape rule names for regex using regex_escape
+  set_fact:
+    escaped_rule_names: "{{ combined_rule_names | map('regex_escape') | list }}"
+
+- name: Construct regex pattern for rule names
+  set_fact:
+    rule_names_regex: "{{ escaped_rule_names | join('|') }}"
+
+- name: Gather existing firewall rules matching combined_rule_names
+  paloaltonetworks.panos.panos_security_rule:
+    provider: "{{ provider }}"
+    rulebase: "rulebase"
+    state: "gathered"
+    gathered_filter: "rule_name matches-regex \"^({{ rule_names_regex }})$\""
+  register: existing_rules
+
+- name: Create a list of existing rule names on the firewall
+  set_fact:
+    existing_rule_names: "{{ existing_rules.gathered | map(attribute='rule_name') | list }}"
+
+- name: Fail if any combined rule with state 'present' already exists on the firewall
+  fail:
+    msg: >
+      Rule '{{ item.rule_name }}' already exists on the firewall.
+      To update, set state to 'replaced' or 'merged'.
+      To remove, set state to 'absent'.
+  when:
+    - item.state == 'present'
+    - item.rule_name in existing_rule_names
+  loop: "{{ combined_firewall_rules.rules }}"
+  loop_control:
+    label: "{{ item.rule_name }}"

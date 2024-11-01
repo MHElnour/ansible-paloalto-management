@@ -1,0 +1,9 @@
+---
+- name: Combine all rules from applications and categories
+  include_tasks: combine_rules.yml
+
+- name: Validate firewall rules
+  include_tasks: validate_rules.yml
+
+- name: Push firewall rules to the firewall
+  include_tasks: push_rules.yml

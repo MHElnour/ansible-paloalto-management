@@ -1,0 +1,19 @@
+---
+rules:
+{% for rule in combined_rules %}
+  - name: "{{ rule.name }}"
+    rule_name: '{{ rule.rule_name }}'
+    description: '{{ rule.description }}'
+    source_zone: {{ rule.source_zone }}
+    destination_zone: {{ rule.destination_zone }}
+    source_ip: {{ rule.source_ip }}
+    destination_ip: {{ rule.destination_ip }}
+    category: {{ rule.category }}
+    application: {{ rule.application }}
+    service: {{ rule.service }}
+    log_end: {{ rule.log_end | lower }}
+    action: '{{ rule.action }}'
+    location: '{{ rule.location }}'
+    existing_rule: '{{ rule.existing_rule }}'
+    state: '{{ rule.state }}'
+{% endfor %}

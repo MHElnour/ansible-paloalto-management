@@ -1,0 +1,22 @@
+---
+- name: Push firewall rules
+  paloaltonetworks.panos.panos_security_rule:
+    provider: "{{ provider }}"
+    rulebase: "rulebase"  # Adjust to your actual rulebase if different
+    rule_name: "{{ item.rule_name }}"
+    state: "{{ item.state }}"
+    description: "{{ item.description | default(omit) }}"
+    source_zone: "{{ item.source_zone | default(omit) }}"
+    destination_zone: "{{ item.destination_zone | default(omit) }}"
+    source_ip: "{{ item.source_ip | default(omit) }}"
+    destination_ip: "{{ item.destination_ip | default(omit) }}"
+    category: "{{ item.category | default(omit) }}"
+    application: "{{ item.application | default(omit) }}"
+    service: "{{ item.service | default(omit) }}"
+    log_end: "{{ item.log_end | default(false) }}"
+    action: "{{ item.action | default(omit) }}"
+    location: "{{ item.location | default(omit) }}"
+    existing_rule: "{{ item.existing_rule | default(omit) }}"
+  loop: "{{ combined_rules }}"
+  loop_control:
+    label: "{{ item.rule_name }}"
