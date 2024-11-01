@@ -1,38 +1,49 @@
-Role Name
-=========
+fw_rules
+=====================
 
-A brief description of the role goes here.
+This role manages firewall rules on a Palo Alto Firewall.
 
 Requirements
 ------------
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
+ansible-galaxy collection install paloaltonetworks.panos
+
+Note: Installing collections with ansible-galaxy is only supported in ansible-core>=2.13.9
+
+Requires Ansible >=2.15.0
 
 Role Variables
 --------------
+The role will fetch the Variables from file: "{{ inventory_dir }}/group_vars/rules/combined_firewall_rules.yml" this file will automatically be created and updated based on changes done to:
 
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
+- {{ inventory_dir }}/group_vars/applications_rules # defines rules apps eg : app1_rules.yml
+- {{ inventory_dir }}/group_vars/categories_rules # defines rules apps eg : generic_allow.yml
+- {{ inventory_dir }}/group_vars/all.yml # define the apps and cat you want to include
 
-Dependencies
-------------
+in group_vars/all.yml define the following variables to specify which application and category rule files to be include:
 
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
+applications_rules:
+  - app1_rules
+categories_rules:
+  - "generic_allow"
 
 Example Playbook
 ----------------
 
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
-
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
+- name: Push All Objects to Palo Alto Firewall
+  hosts: prod-firewall01
+  connection: local
+  gather_facts: false
+  become: false
+  roles:
+    - role: fw_rules
 
 License
 -------
 
-BSD
+Apache 2.0 License
 
 Author Information
 ------------------
+MHElnour
 
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).

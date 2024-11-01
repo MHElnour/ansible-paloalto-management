@@ -1,10 +1,17 @@
 ---
 rules:
-  - name: "Allow_App1_HTTP"
-    source_zone: "untrust"
-    destination_zone: "trust"
-    source_address: ["any"]
-    destination_address: ["App1_Server"]
-    service: ["App1_HTTP"]
-    action: "allow"
-    category: "app1_allow"
+  - name: "add a rule at a specific location in the rulebase"
+    rule_name: 'app1'
+    description: 'SSH rule test the new fw'
+    source_zone: ['Data_Zone'] 
+    destination_zone: ['Data_Zone'] 
+    source_ip: ['any']
+    destination_ip: ['PA_Remote_Access']
+    category: ['any']
+    application: ['any']
+    service: ['DNS'] 
+    log_end: true
+    action: 'allow'
+    location: 'before'
+    existing_rule: 'Allow'
+    state: "present"  # Options: 'present', 'replaced', 'absent'
