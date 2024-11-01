@@ -1,9 +1,9 @@
 ---
 tags:
-  - name: 'Prod-mer'
+  - name: 'Prod-2'
     color: 'red'
     comments: 'Production Environment'
-    state: 'merged'
+    state: 'replaced'
   - name: 'Dev'
     color: 'blue'
     comments: 'Development Environment'

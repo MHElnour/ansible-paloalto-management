@@ -15,6 +15,7 @@ Requires Ansible >=2.15.0
 Role Variables
 --------------
 The role will fetch the Variables from file: "{{ inventory_dir }}/group_vars/objects/service_objects_group.yml" 
+
 service_groups:
   - name: 'Web_Services'
     value:
