@@ -15,18 +15,19 @@ Requires Ansible >=2.15.0
 Role Variables
 --------------
 The role will fetch the Variables from file: "{{ inventory_dir }}/group_vars/rules/combined_firewall_rules.yml" this file will automatically be created and updated based on changes done to:
-
+```yml
 - {{ inventory_dir }}/group_vars/applications_rules # defines rules apps eg : app1_rules.yml
 - {{ inventory_dir }}/group_vars/categories_rules # defines rules apps eg : generic_allow.yml
 - {{ inventory_dir }}/group_vars/all.yml # define the apps and cat you want to include
+```
 
 in group_vars/all.yml define the following variables to specify which application and category rule files to be include:
-
+```yml
 applications_rules:
   - app1_rules
 categories_rules:
   - "generic_allow"
-
+```
 Example Playbook
 ----------------
 ```yml
