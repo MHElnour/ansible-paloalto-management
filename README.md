@@ -62,8 +62,7 @@ This project is actively being developed. The following functionalities are curr
 - **Pushing Services:** Manages service objects and ensures they are correctly configured.
 - **Pushing Groups:** Handles the creation and updating of service and address groups.
 - **Pushing Tags:** Automates the management of tag objects for better organization.
-
-**Note:** The workflow is not yet complete. Future updates will include enhanced features, error handling, and support for additional firewall configurations.
+- **Firewall Rules Management:** Define, validate, and push firewall rules.
 
 ## Installation
 
