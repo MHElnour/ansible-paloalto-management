@@ -29,7 +29,7 @@ categories_rules:
 
 Example Playbook
 ----------------
-
+```yml
 - name: Push All Objects to Palo Alto Firewall
   hosts: prod-firewall01
   connection: local
@@ -37,6 +37,7 @@ Example Playbook
   become: false
   roles:
     - role: fw_rules
+```
 
 License
 -------
