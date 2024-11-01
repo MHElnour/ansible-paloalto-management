@@ -49,6 +49,7 @@ checks to always be clean, and will flag any errors and halt the execution of th
 - **Address Objects Management:** Define and manage individual address objects.
 - **Address Groups Management:** Group address objects for organized network segmentation.
 - **Tag Objects Management:** Create and manage tags to categorize and describe firewall objects.
+- **Firewall Rules Management:** Define, validate, and push firewall rules.
 
 
 ## Current Status
